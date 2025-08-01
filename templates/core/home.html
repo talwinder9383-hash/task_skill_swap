@@ -44,15 +44,15 @@
             <!-- Stats -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-16 max-w-4xl mx-auto">
                 <div class="text-center">
-                    <div class="text-3xl font-bold">{{ stats.total_users|default:"1000+" }}</div>
+                    <div class="text-3xl font-bold">{{ stats.total_users|default:"0" }}+</div>
                     <div class="text-blue-200">Active Students</div>
                 </div>
                 <div class="text-center">
-                    <div class="text-3xl font-bold">{{ stats.total_skills|default:"500+" }}</div>
+                    <div class="text-3xl font-bold">{{ stats.total_skills|default:"0" }}+</div>
                     <div class="text-blue-200">Skills Available</div>
                 </div>
                 <div class="text-center">
-                    <div class="text-3xl font-bold">{{ stats.total_sessions|default:"2000+" }}</div>
+                    <div class="text-3xl font-bold">{{ stats.total_sessions|default:"0" }}+</div>
                     <div class="text-blue-200">Sessions Completed</div>
                 </div>
                 <div class="text-center">
