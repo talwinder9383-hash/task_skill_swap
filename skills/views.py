@@ -83,7 +83,7 @@ class SkillListView(ListView):
                     skill=skill, 
                     is_active=True
                 ).select_related('user').annotate(
-                    avg_rating=Avg('user__received_sessions__rating')
+                    avg_rating=Avg('user__teaching_sessions__reviews__overall_rating')
                 )
                 
                 skill_teachers = []
