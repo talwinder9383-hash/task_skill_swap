@@ -46,6 +46,41 @@ class ReceivedRequestListView(LoginRequiredMixin, ListView):
         ).select_related('requester', 'offered_skill')
 
 
+class CreateRequestView(LoginRequiredMixin, CreateView):
+    model = SkillSwapRequest
+    form_class = SkillSwapRequestForm
+    template_name = 'skill_sessions/create_request.html'
+    success_url = reverse_lazy('skill_sessions:request_list')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Get the offered skill from query parameters
+        offered_skill_id = self.request.GET.get('offered_skill')
+        if offered_skill_id:
+            try:
+                from skills.models import OfferedSkill
+                offered_skill = OfferedSkill.objects.get(id=offered_skill_id)
+                context['offered_skill'] = offered_skill
+                context['recipient'] = offered_skill.user
+            except OfferedSkill.DoesNotExist:
+                pass
+        return context
+    
+    def form_valid(self, form):
+        form.instance.requester = self.request.user
+        # Get recipient from offered skill
+        offered_skill_id = self.request.GET.get('offered_skill')
+        if offered_skill_id:
+            try:
+                from skills.models import OfferedSkill
+                offered_skill = OfferedSkill.objects.get(id=offered_skill_id)
+                form.instance.recipient = offered_skill.user
+                form.instance.offered_skill = offered_skill
+            except OfferedSkill.DoesNotExist:
+                pass
+        return super().form_valid(form)
+
+
 class SendRequestView(LoginRequiredMixin, CreateView):
     model = SkillSwapRequest
     form_class = SkillSwapRequestForm
