@@ -59,6 +59,10 @@ class SkillListView(ListView):
         show_trending = not has_filters
         context['show_trending'] = show_trending
         
+        # Show skills grid when someone searches or wants to find teachers
+        show_skills_grid = has_filters or self.request.GET.get('find_teachers')
+        context['show_skills_grid'] = show_skills_grid
+        
         if show_trending:
             # Get trending skills based on most offered skills (limited to 15)
             trending_skills = (Skill.objects
@@ -67,6 +71,36 @@ class SkillListView(ListView):
                               .filter(offered_count__gt=0)
                               .order_by('-offered_count', 'name')[:15])
             context['trending_skills'] = trending_skills
+        
+        # If showing skills grid, get teachers for the filtered skills
+        if show_skills_grid and has_filters:
+            from .models import OfferedSkill
+            queryset = self.get_queryset()
+            teachers_data = []
+            
+            for skill in queryset:
+                offered_skills = OfferedSkill.objects.filter(
+                    skill=skill, 
+                    is_active=True
+                ).select_related('user').annotate(
+                    avg_rating=Avg('user__received_sessions__rating')
+                )
+                
+                skill_teachers = []
+                for offered_skill in offered_skills:
+                    skill_teachers.append({
+                        'user': offered_skill.user,
+                        'offered_skill': offered_skill,
+                        'avg_rating': offered_skill.avg_rating or 0,
+                    })
+                
+                if skill_teachers:
+                    teachers_data.append({
+                        'skill': skill,
+                        'teachers': skill_teachers[:6]  # Limit to 6 teachers per skill
+                    })
+            
+            context['teachers_data'] = teachers_data
         
         # Get all categories for browse section
         context['categories'] = SkillCategory.objects.filter(is_active=True).annotate(
@@ -130,7 +164,20 @@ class OfferedSkillCreateView(LoginRequiredMixin, CreateView):
     
     def form_valid(self, form):
         form.instance.user = self.request.user
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        
+        # Calculate updated skills completed count
+        from skill_sessions.models import SkillSwapSession
+        skills_completed = SkillSwapSession.objects.filter(
+            learner=self.request.user,
+            status='completed'
+        ).values('skill').distinct().count()
+        
+        messages.success(
+            self.request, 
+            f'Skill added successfully! You have completed {skills_completed} skills so far.'
+        )
+        return response
 
 
 class OfferedSkillUpdateView(LoginRequiredMixin, UpdateView):
@@ -150,6 +197,22 @@ class OfferedSkillDeleteView(LoginRequiredMixin, DeleteView):
     
     def get_queryset(self):
         return OfferedSkill.objects.filter(user=self.request.user)
+    
+    def delete(self, request, *args, **kwargs):
+        response = super().delete(request, *args, **kwargs)
+        
+        # Calculate updated skills completed count
+        from skill_sessions.models import SkillSwapSession
+        skills_completed = SkillSwapSession.objects.filter(
+            learner=self.request.user,
+            status='completed'
+        ).values('skill').distinct().count()
+        
+        messages.success(
+            self.request, 
+            f'Skill removed successfully! You have completed {skills_completed} skills so far.'
+        )
+        return response
 
 
 @login_required
@@ -177,7 +240,20 @@ class DesiredSkillCreateView(LoginRequiredMixin, CreateView):
     
     def form_valid(self, form):
         form.instance.user = self.request.user
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        
+        # Calculate updated skills completed count
+        from skill_sessions.models import SkillSwapSession
+        skills_completed = SkillSwapSession.objects.filter(
+            learner=self.request.user,
+            status='completed'
+        ).values('skill').distinct().count()
+        
+        messages.success(
+            self.request, 
+            f'Skill goal added successfully! You have completed {skills_completed} skills so far.'
+        )
+        return response
 
 
 class DesiredSkillUpdateView(LoginRequiredMixin, UpdateView):
@@ -197,6 +273,22 @@ class DesiredSkillDeleteView(LoginRequiredMixin, DeleteView):
     
     def get_queryset(self):
         return DesiredSkill.objects.filter(user=self.request.user)
+    
+    def delete(self, request, *args, **kwargs):
+        response = super().delete(request, *args, **kwargs)
+        
+        # Calculate updated skills completed count
+        from skill_sessions.models import SkillSwapSession
+        skills_completed = SkillSwapSession.objects.filter(
+            learner=self.request.user,
+            status='completed'
+        ).values('skill').distinct().count()
+        
+        messages.success(
+            self.request, 
+            f'Skill goal removed successfully! You have completed {skills_completed} skills so far.'
+        )
+        return response
 
 
 @login_required
@@ -282,6 +374,42 @@ def get_skills_by_category_public(request):
         data = [{'id': skill.id, 'name': skill.name} for skill in skills]
         return JsonResponse({'skills': data})
     return JsonResponse({'skills': []})
+
+
+@login_required
+def get_user_stats(request):
+    """AJAX endpoint to get user's current dashboard stats"""
+    from skill_sessions.models import SkillSwapSession, SkillSwapRequest
+    from django.db.models import Q
+    from datetime import datetime
+    
+    user = request.user
+    
+    # Skills completed - count sessions where user was learner and status is completed
+    skills_completed = SkillSwapSession.objects.filter(
+        learner=user,
+        status='completed'
+    ).values('skill').distinct().count()
+    
+    # Sessions this month
+    first_day_of_month = datetime.now().replace(day=1)
+    sessions_this_month = SkillSwapSession.objects.filter(
+        Q(teacher=user) | Q(learner=user),
+        created_at__gte=first_day_of_month,
+        status='completed'
+    ).count()
+    
+    # Active requests
+    active_requests = SkillSwapRequest.objects.filter(
+        Q(requester=user) | Q(recipient=user),
+        status='pending'
+    ).count()
+    
+    return JsonResponse({
+        'skills_completed': skills_completed,
+        'sessions_this_month': sessions_this_month,
+        'active_requests': active_requests,
+    })
 
 
 class TrendingSkillsMoreView(LoginRequiredMixin, ListView):

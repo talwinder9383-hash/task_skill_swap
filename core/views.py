@@ -33,7 +33,95 @@ class HomeView:
 class DashboardView:
     @classmethod
     def as_view(cls):
-        return lambda r: render(r, "core/dashboard.html")
+        @login_required
+        def dashboard_view(request):
+            from skills.models import DesiredSkill, OfferedSkill
+            from skill_sessions.models import SkillSwapSession
+            from django.db.models import Q, Count
+            from datetime import datetime, timedelta
+            
+            # Calculate user-specific stats
+            user = request.user
+            
+            # Skills completed - count sessions where user was learner and status is completed
+            skills_completed = SkillSwapSession.objects.filter(
+                learner=user,
+                status='completed'
+            ).values('skill').distinct().count()
+            
+            # Sessions this month
+            first_day_of_month = datetime.now().replace(day=1)
+            sessions_this_month = SkillSwapSession.objects.filter(
+                Q(teacher=user) | Q(learner=user),
+                created_at__gte=first_day_of_month,
+                status='completed'
+            ).count()
+            
+            # Active requests - pending requests where user is involved
+            from skill_sessions.models import SkillSwapRequest
+            active_requests = SkillSwapRequest.objects.filter(
+                Q(requester=user) | Q(recipient=user),
+                status='pending'
+            ).count()
+            
+            # Recent requests for the user (both sent and received)
+            recent_requests_received = SkillSwapRequest.objects.filter(
+                recipient=user
+            ).select_related('requester', 'offered_skill__skill')[:5]
+            
+            recent_requests_sent = SkillSwapRequest.objects.filter(
+                requester=user
+            ).select_related('recipient', 'offered_skill__skill')[:5]
+            
+            # Combine and format recent requests
+            recent_requests = []
+            for req in recent_requests_received:
+                recent_requests.append({
+                    'skill_name': req.offered_skill.skill.name,
+                    'request_type': 'Received',
+                    'date': req.created_at,
+                    'status': req.get_status_display(),
+                    'detail_url': f'/skill-sessions/requests/{req.id}/'
+                })
+            
+            for req in recent_requests_sent:
+                recent_requests.append({
+                    'skill_name': req.offered_skill.skill.name,
+                    'request_type': 'Sent',
+                    'date': req.created_at,
+                    'status': req.get_status_display(),
+                    'detail_url': f'/skill-sessions/requests/{req.id}/'
+                })
+            
+            # Sort by date and limit to 10 most recent
+            recent_requests.sort(key=lambda x: x['date'], reverse=True)
+            recent_requests = recent_requests[:10]
+            
+            # Progress data
+            completed_courses = SkillSwapSession.objects.filter(
+                learner=user,
+                status='completed'
+            ).count()
+            
+            stats = {
+                'skills_completed': skills_completed,
+                'sessions_this_month': sessions_this_month,
+                'active_requests': active_requests,
+            }
+            
+            progress = {
+                'completed_courses': completed_courses,
+            }
+            
+            context = {
+                'stats': stats,
+                'recent_requests': recent_requests,
+                'progress': progress,
+            }
+            
+            return render(request, "core/dashboard.html", context)
+            
+        return dashboard_view
 
 class RequestsView:
     @classmethod

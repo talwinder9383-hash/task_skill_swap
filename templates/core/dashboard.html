@@ -26,8 +26,8 @@
                 <!-- Quick Stats -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="bg-green-50 p-6 rounded-xl text-center">
-                        <div class="text-3xl font-bold text-green-600 mb-2">{{ stats.skills_learning|default:"0" }}</div>
-                        <div class="text-gray-700">Skills Learning</div>
+                        <div class="text-3xl font-bold text-green-600 mb-2">{{ stats.skills_completed|default:"0" }}</div>
+                        <div class="text-gray-700">Skills Completed</div>
                     </div>
                     <div class="bg-purple-50 p-6 rounded-xl text-center">
                         <div class="text-3xl font-bold text-purple-600 mb-2">{{ stats.sessions_this_month|default:"0" }}</div>
@@ -122,5 +122,73 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- You can add chart.js or other chart libraries here for dynamic charts -->
+<script>
+    // Function to update dashboard stats
+    function updateDashboardStats() {
+        fetch('{% url "skills:get_user_stats" %}')
+            .then(response => response.json())
+            .then(data => {
+                // Update the skills completed count
+                const skillsCompletedElement = document.querySelector('.text-green-600.mb-2');
+                if (skillsCompletedElement) {
+                    skillsCompletedElement.textContent = data.skills_completed;
+                }
+                
+                // Update sessions this month
+                const sessionsElement = document.querySelector('.text-purple-600.mb-2');
+                if (sessionsElement) {
+                    sessionsElement.textContent = data.sessions_this_month;
+                }
+                
+                // Update active requests
+                const requestsElement = document.querySelector('.text-yellow-600.mb-2');
+                if (requestsElement) {
+                    requestsElement.textContent = data.active_requests;
+                }
+            })
+            .catch(error => {
+                console.error('Error updating dashboard stats:', error);
+            });
+    }
+
+    // Listen for custom events from other pages that might update skills
+    window.addEventListener('skillsUpdated', function() {
+        updateDashboardStats();
+    });
+
+    // Auto-refresh stats every 30 seconds if user is active
+    let lastActivity = Date.now();
+    let isActive = true;
+
+    // Track user activity
+    ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'].forEach(function(name) {
+        document.addEventListener(name, function() {
+            lastActivity = Date.now();
+            isActive = true;
+        }, true);
+    });
+
+    // Auto-refresh function
+    setInterval(function() {
+        // Only refresh if user has been active in the last 5 minutes
+        if (Date.now() - lastActivity < 5 * 60 * 1000) {
+            updateDashboardStats();
+        }
+    }, 30000); // Every 30 seconds
+
+    // Animate stats on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const statNumbers = document.querySelectorAll('.text-3xl.font-bold');
+        statNumbers.forEach(function(element, index) {
+            element.style.opacity = '0';
+            element.style.transform = 'translateY(20px)';
+            
+            setTimeout(function() {
+                element.style.transition = 'all 0.6s ease-out';
+                element.style.opacity = '1';
+                element.style.transform = 'translateY(0)';
+            }, index * 200);
+        });
+    });
+</script>
 {% endblock %}
