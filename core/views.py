@@ -5,7 +5,25 @@ from django.db import models
 from skill_sessions.models import SkillSwapRequest, SkillSwapSession
 
 def home(request):
-    return render(request, "core/home.html")
+    from django.contrib.auth.models import User
+    from skills.models import Skill, OfferedSkill
+    from skill_sessions.models import SkillSwapSession
+    from accounts.models import UserProfile
+    
+    # Calculate dynamic stats
+    stats = {
+        'total_users': User.objects.filter(is_active=True).count(),
+        'total_skills': Skill.objects.count(),
+        'total_offered_skills': OfferedSkill.objects.count(),
+        'total_sessions': SkillSwapSession.objects.filter(status='completed').count(),
+        'active_sessions': SkillSwapSession.objects.filter(status__in=['scheduled', 'in_progress']).count(),
+    }
+    
+    context = {
+        'stats': stats
+    }
+    
+    return render(request, "core/home.html", context)
 
 class HomeView:
     @classmethod
@@ -79,7 +97,16 @@ class NotificationListView:
         return lambda r: render(r, "core/notifications.html")
 
 def mark_notification_read(request, notification_id):
+    from accounts.models import Notification
+    from django.shortcuts import get_object_or_404
+    
+    notification = get_object_or_404(Notification, id=notification_id, recipient=request.user)
+    notification.is_read = True
+    notification.save()
     return JsonResponse({"status": "success"})
 
 def mark_all_notifications_read(request):
+    from accounts.models import Notification
+    
+    Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
     return JsonResponse({"status": "success"})

@@ -9,9 +9,24 @@ class NotificationListAPI(LoginRequiredMixin, ListView):
     
     def get(self, request, *args, **kwargs):
         from accounts.models import Notification
-        notifications = Notification.objects.filter(recipient=request.user)[:20]
-        data = [{'id': n.id, 'title': n.title, 'message': n.message} for n in notifications]
-        return JsonResponse({'results': data})
+        notifications = Notification.objects.filter(recipient=request.user).order_by('-created_at')[:20]
+        unread_count = Notification.objects.filter(recipient=request.user, is_read=False).count()
+        
+        data = []
+        for n in notifications:
+            data.append({
+                'id': n.id,
+                'title': n.title,
+                'message': n.message,
+                'is_read': n.is_read,
+                'created_at': n.created_at.strftime('%Y-%m-%d %H:%M'),
+                'notification_type': n.notification_type
+            })
+        
+        return JsonResponse({
+            'notifications': data,
+            'unread_count': unread_count
+        })
 
 
 class UnreadNotificationCountAPI(LoginRequiredMixin, ListView):

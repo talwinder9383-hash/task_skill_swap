@@ -75,10 +75,56 @@ class RequestResponseView(LoginRequiredMixin, UpdateView):
     model = SkillSwapRequest
     form_class = RequestResponseForm
     template_name = 'skill_sessions/request_response.html'
-    success_url = reverse_lazy('skill_sessions:session_list')
+    success_url = reverse_lazy('skill_sessions:received_requests')
     
     def get_queryset(self):
         return SkillSwapRequest.objects.filter(recipient=self.request.user)
+    
+    def get(self, request, *args, **kwargs):
+        # Handle simple approve/decline actions via GET
+        if 'action' in request.GET:
+            request_obj = self.get_object()
+            action = request.GET.get('action')
+            
+            if action == 'accept':
+                request_obj.status = 'accepted'
+                request_obj.responded_at = timezone.now()
+                request_obj.save()
+                
+                # Create notification for the requester
+                from accounts.models import Notification
+                Notification.objects.create(
+                    recipient=request_obj.requester,
+                    notification_type='request_accepted',
+                    title='Request Accepted!',
+                    message=f'{request.user.get_full_name() or request.user.username} accepted your skill swap request for {request_obj.offered_skill.skill.name}.',
+                    related_user=request.user,
+                    related_object_id=request_obj.id
+                )
+                
+                messages.success(request, f'Session request from {request_obj.requester.username} has been approved!')
+                
+            elif action == 'decline':
+                request_obj.status = 'declined'
+                request_obj.responded_at = timezone.now()
+                request_obj.save()
+                
+                # Create notification for the requester
+                from accounts.models import Notification
+                Notification.objects.create(
+                    recipient=request_obj.requester,
+                    notification_type='request_declined',
+                    title='Request Declined',
+                    message=f'{request.user.get_full_name() or request.user.username} declined your skill swap request for {request_obj.offered_skill.skill.name}.',
+                    related_user=request.user,
+                    related_object_id=request_obj.id
+                )
+                
+                messages.success(request, f'Session request from {request_obj.requester.username} has been declined.')
+            
+            return redirect(self.success_url)
+        
+        return super().get(request, *args, **kwargs)
     
     def post(self, request, *args, **kwargs):
         # Handle simple approve/decline actions
@@ -90,11 +136,36 @@ class RequestResponseView(LoginRequiredMixin, UpdateView):
                 request_obj.status = 'accepted'
                 request_obj.responded_at = timezone.now()
                 request_obj.save()
+                
+                # Create notification for the requester
+                from accounts.models import Notification
+                Notification.objects.create(
+                    recipient=request_obj.requester,
+                    notification_type='request_accepted',
+                    title='Request Accepted!',
+                    message=f'{request.user.get_full_name() or request.user.username} accepted your skill swap request for {request_obj.offered_skill.skill.name}.',
+                    related_user=request.user,
+                    related_object_id=request_obj.id
+                )
+                
                 messages.success(request, f'Session request from {request_obj.requester.username} has been approved!')
+                
             elif action == 'decline':
                 request_obj.status = 'declined'
                 request_obj.responded_at = timezone.now()
                 request_obj.save()
+                
+                # Create notification for the requester
+                from accounts.models import Notification
+                Notification.objects.create(
+                    recipient=request_obj.requester,
+                    notification_type='request_declined',
+                    title='Request Declined',
+                    message=f'{request.user.get_full_name() or request.user.username} declined your skill swap request for {request_obj.offered_skill.skill.name}.',
+                    related_user=request.user,
+                    related_object_id=request_obj.id
+                )
+                
                 messages.success(request, f'Session request from {request_obj.requester.username} has been declined.')
             
             return redirect(self.success_url)
