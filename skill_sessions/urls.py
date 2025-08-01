@@ -8,6 +8,7 @@ urlpatterns = [
     path('requests/', views.RequestListView.as_view(), name='request_list'),
     path('requests/sent/', views.SentRequestListView.as_view(), name='sent_requests'),
     path('requests/received/', views.ReceivedRequestListView.as_view(), name='received_requests'),
+    path('requests/create/', views.CreateRequestView.as_view(), name='create_request'),
     path('requests/send/<int:user_id>/', views.SendRequestView.as_view(), name='send_request'),
     path('requests/<int:pk>/', views.RequestDetailView.as_view(), name='request_detail'),
     path('requests/<int:pk>/respond/', views.RequestResponseView.as_view(), name='request_respond'),
